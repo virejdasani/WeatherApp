@@ -1,7 +1,16 @@
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import * as Location from "expo-location";
-import React, { useState, useEffect } from "react";
+
+import ReloadIcon from "./components/ReloadIcon";
+import WeatherInfo from "./components/WeatherInfo";
+import WeatherDetails from "./components/WeatherDetails";
+import UnitsPicker from "./components/UnitsPicker";
+
+import { colors } from "./utils";
+
+const BASE_WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather?";
 
 // const WEATHER_API_KEY = "bc8e0b40b06cc16cb2789d03d458750c";
 const WEATHER_API_KEY = "4991daf33e84a95c2a155406681ccfcc";
@@ -9,54 +18,73 @@ const WEATHER_API_KEY = "4991daf33e84a95c2a155406681ccfcc";
 export default function App() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [currentWeather, setCurrentWeather] = useState(null);
+  const [unitsSystem, setUnitsSystem] = useState("metric");
 
   useEffect(() => {
     load();
-  }, []);
+  }, [unitsSystem]);
 
   async function load() {
+    setCurrentWeather(null);
+    setErrorMessage(null);
     try {
-      // request location permission
       let { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        setErrorMessage("Permission to access location was denied");
+        setErrorMessage("Access to location is needed to run the app");
         return;
       }
       const location = await Location.getCurrentPositionAsync();
+
       const { latitude, longitude } = location.coords;
 
-      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${WEATHER_API_KEY}&units=metric`;
+      const weatherUrl = `${BASE_WEATHER_URL}lat=${latitude}&lon=${longitude}&units=${unitsSystem}&appid=${WEATHER_API_KEY}`;
 
-      const response = await fetch(weatherUrl).then((response) =>
-        response.json()
-      );
+      const response = await fetch(weatherUrl);
 
-      if (response.cod !== 200) {
-        setCurrentWeather(response);
+      const result = await response.json();
+
+      if (response.ok) {
+        setCurrentWeather(result);
       } else {
-        setErrorMessage(response.message);
+        setErrorMessage(result.message);
       }
-
-      // console.log(response);
     } catch (error) {
-      console.log(error);
+      setErrorMessage(error.message);
     }
   }
-
   if (currentWeather) {
-    const temp = currentWeather.main.temp;
-    console.log(temp);
     return (
       <View style={styles.container}>
-        <Text style={{ color: "white" }}>{temp}</Text>
+        <StatusBar style="auto" />
+        <View style={styles.main}>
+          <UnitsPicker
+            unitsSystem={unitsSystem}
+            setUnitsSystem={setUnitsSystem}
+          />
+          <ReloadIcon load={load} />
+          <WeatherInfo currentWeather={currentWeather} />
+        </View>
+        <WeatherDetails
+          currentWeather={currentWeather}
+          unitsSystem={unitsSystem}
+        />
+      </View>
+    );
+  } else if (errorMessage) {
+    return (
+      <View style={styles.container}>
+        <ReloadIcon load={load} />
+        <Text style={{ textAlign: "center", color: "white" }}>
+          {errorMessage}
+        </Text>
         <StatusBar style="auto" />
       </View>
     );
   } else {
     return (
       <View style={styles.container}>
-        <Text style={{ color: "white" }}>loading</Text>
+        <ActivityIndicator size="large" color={colors.PRIMARY_COLOR} />
         <StatusBar style="auto" />
       </View>
     );
@@ -66,8 +94,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#222",
-    alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#222",
+  },
+  main: {
+    justifyContent: "center",
+    flex: 1,
   },
 });
